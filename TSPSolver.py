@@ -145,26 +145,34 @@ class TSPSolver:
 	def fancy( self,time_allowance=60.0 ):
 		pass
 
-	def RMCA(self, edges, to, fro, bound=0):
+	def RMCA(self, edges, r, c, bound=0):
 		for row in range(len(edges[0])):
 			boundAdded = False
 			minimum = min(edges[row])
 			for col in range(len(edges[0])):
-				if (minimum == float('inf') and (row != fro and col != to)) or minimum != float('inf'):
+				# (minimum == float('inf') and (row != fro and col != to)) or
+				if minimum != float('inf'):
 					edges[row][col] -= minimum
 					if boundAdded == False:
 						bound += minimum
 						boundAdded = True
+				else:
+					if (row != r and col != c):
+							bound = float('inf')
 		edgesTranspose = np.transpose(edges)
 		for row in range(len(edgesTranspose[0])):
 			boundAdded = False
 			minimum = min(edgesTranspose[row])
 			for col in range(len(edgesTranspose[0])):
-				if (minimum == float('inf') and (row != fro and col != to)) or minimum != float('inf'):
+				# (minimum == float('inf') and (row != fro and col != to)) or
+				if minimum != float('inf'):
 					edgesTranspose[row][col] -= minimum
 					if boundAdded == False:
 						bound += minimum
 						boundAdded = True
+				else:
+					if (row != c and col != r):
+						bound = float('inf')
 		ogMatrix = np.transpose(edgesTranspose)
 		ogMatrixList = ogMatrix.tolist()
 		# if fro < len(ogMatrix) and to < len(ogMatrix):
@@ -172,10 +180,10 @@ class TSPSolver:
 		return bound, ogMatrixList
 
 	values = [
-		[float('inf'), 8, 12, 4],
-		[3, float('inf'), 7, 1],
+		[float('inf'), 8, float('inf'), 4],
+		[float('inf'), float('inf'), float('inf'), float('inf')],
 		[2, 6, float('inf'), 4],
-		[float('inf'), 3, 5, float('inf')]
+		[float('inf'), 3, float('inf'), float('inf')]
 	]
 
 	RMCA(0, values, 1, 2, 0)
