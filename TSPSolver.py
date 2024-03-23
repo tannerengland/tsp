@@ -16,6 +16,7 @@ import numpy as np
 from TSPClasses import *
 import heapq
 import itertools
+import copy
 
 
 class TSPSolver:
@@ -81,17 +82,24 @@ class TSPSolver:
 	'''
 
 	def greedy( self,time_allowance=60.0 ):
-		cities = self._scenario.getCities()
+		cities = self._scenario.getCities().copy()
+		results = {}
+		bssf = None
 
+		start_time = time.time()
 		doAgain = True
+		count = 0
 		while doAgain:
+			count += 1
 			random_index = random.randint(0, len(cities) - 1)
 			route = []
 			route.append(cities[random_index])
 			currCity = cities[random_index]
+			currIndex = random_index
 
 			visitedBools = [False] * len(cities)
 			visitedBools[random_index] = True
+			cost = 0
 
 			# while all cities are not visited
 			while not all(visitedBools):
@@ -107,15 +115,28 @@ class TSPSolver:
 					i += 1
 				nextCityIndex = np.argmin(costs)
 				route.append(cities[nextCityIndex])
+				cost += costs[nextCityIndex]
 				currCity = cities[nextCityIndex]
 				currIndex = nextCityIndex
+				costs[currIndex] = float('inf')
 				# set city to visited
 				visitedBools[currIndex] = True
 
-			if route[-1].costTo(route[0]) != float('inf'):
+			if route[-1].costTo(route[0]) != float('inf') and cost != float('inf'):
 				doAgain = False
 
-		return route
+			bssf = TSPSolution(route)
+			bssf.cost = cost
+
+		end_time = time.time()
+		results['cost'] = bssf.cost
+		results['time'] = end_time - start_time
+		results['count'] = count
+		results['soln'] = bssf
+		results['max'] = None
+		results['total'] = None
+		results['pruned'] = None
+		return results
 
 
 
@@ -129,8 +150,62 @@ class TSPSolver:
 	'''
 
 	def branchAndBound( self, time_allowance=60.0 ):
+		cities = self._scenario.getCities().copy()
+
+		edges = []
+		for col in range(len((edges[0]))):
+			if edges[0][col] != float('inf'):
+				print("beans")
 		pass
 
+	def partial_path(self, mat, r, c, prevBound=0, prevRows=[], prevCols=[]):
+		edges = copy.deepcopy(mat)
+
+		prevBound += edges[r][c]
+		for row in range(len(np.transpose(edges)[0])):
+			for col in range(len(edges[0])):
+				if (row == r or col == c):
+					edges[row][col] = float('inf')
+		edges[c][r] = float('inf')
+
+		bound, newEdges = self.RMCA(edges, r, c, prevBound, prevRows, prevCols)
+		return bound, newEdges
+
+	def RMCA(self, edges, r, c, prevBound=0, prevRows=[], prevCols=[]):
+		bound = 0
+		for row in range(len(edges[0])):
+			boundAdded = False
+			minimum = min(edges[row])
+			for col in range(len(edges[0])):
+				# (minimum == float('inf') and (row != fro and col != to)) or
+				if minimum != float('inf'):
+					edges[row][col] -= minimum
+					if boundAdded == False:
+						bound += minimum
+						boundAdded = True
+				else:
+					if (row != r and col != c) and (row not in prevRows and col not in prevCols):
+							bound = float('inf')
+		edgesTranspose = np.transpose(edges)
+		for row in range(len(edgesTranspose[0])):
+			boundAdded = False
+			minimum = min(edgesTranspose[row])
+			for col in range(len(edgesTranspose[0])):
+				# (minimum == float('inf') and (row != fro and col != to)) or
+				if minimum != float('inf'):
+					edgesTranspose[row][col] -= minimum
+					if boundAdded == False:
+						bound += minimum
+						boundAdded = True
+				else:
+					if (row != c and col != r) and (row not in prevCols and col not in prevRows):
+						bound = float('inf')
+		ogMatrix = np.transpose(edgesTranspose)
+		ogMatrixList = ogMatrix.tolist()
+		# if fro < len(ogMatrix) and to < len(ogMatrix):
+		# 	ogMatrix[fro][to] = float('inf')
+		bound += prevBound
+		return bound, ogMatrixList
 
 
 	''' <summary>
@@ -145,45 +220,29 @@ class TSPSolver:
 	def fancy( self,time_allowance=60.0 ):
 		pass
 
-	def RMCA(self, edges, r, c, bound=0):
-		for row in range(len(edges[0])):
-			boundAdded = False
-			minimum = min(edges[row])
-			for col in range(len(edges[0])):
-				# (minimum == float('inf') and (row != fro and col != to)) or
-				if minimum != float('inf'):
-					edges[row][col] -= minimum
-					if boundAdded == False:
-						bound += minimum
-						boundAdded = True
-				else:
-					if (row != r and col != c):
-							bound = float('inf')
-		edgesTranspose = np.transpose(edges)
-		for row in range(len(edgesTranspose[0])):
-			boundAdded = False
-			minimum = min(edgesTranspose[row])
-			for col in range(len(edgesTranspose[0])):
-				# (minimum == float('inf') and (row != fro and col != to)) or
-				if minimum != float('inf'):
-					edgesTranspose[row][col] -= minimum
-					if boundAdded == False:
-						bound += minimum
-						boundAdded = True
-				else:
-					if (row != c and col != r):
-						bound = float('inf')
-		ogMatrix = np.transpose(edgesTranspose)
-		ogMatrixList = ogMatrix.tolist()
-		# if fro < len(ogMatrix) and to < len(ogMatrix):
-		# 	ogMatrix[fro][to] = float('inf')
-		return bound, ogMatrixList
+# values = [
+# 	[float('inf'), 1, float('inf'), 0, float('inf')],
+# 	[float('inf'), float('inf'), 1, float('inf'), 0],
+# 	[float('inf'), 0, float('inf'), 1, float('inf')],
+# 	[float('inf'), 0, 0, float('inf'), 6],
+# 	[0, float('inf'), float('inf'), 9 ,float('inf')]
+# ]
+# values = [
+# 	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
+# 	[float('inf'), float('inf'), 1, float('inf'), 0],
+# 	[float('inf'), 0, float('inf'), float('inf'), float('inf')],
+# 	[float('inf'), 0, 0, float('inf'), 6],
+# 	[0, float('inf'), float('inf'), float('inf'), float('inf')]
+# ]
+values = [
+	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
+	[float('inf'), float('inf'), float('inf'), float('inf'), 0],
+	[float('inf'), 0, float('inf'), float('inf'), float('inf')],
+	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
+	[0, float('inf'), float('inf'), float('inf'), float('inf')]
+]
 
-	values = [
-		[float('inf'), 8, float('inf'), 4],
-		[float('inf'), float('inf'), float('inf'), float('inf')],
-		[2, 6, float('inf'), 4],
-		[float('inf'), 3, float('inf'), float('inf')]
-	]
+solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
+TSPSolver.partial_path(solver_object, values, 2, 4, 21, [0,3], [3,2])
 
-	RMCA(0, values, 1, 2, 0)
+		# RMCA(0, values, 1, 2, 0)
