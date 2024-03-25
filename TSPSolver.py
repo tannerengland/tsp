@@ -151,14 +151,68 @@ class TSPSolver:
 
 	def branchAndBound( self, time_allowance=60.0 ):
 		cities = self._scenario.getCities().copy()
+		# distances = self.cities[0].costTo(cities[1]._index)
+		# dict = {}
+		edges = [[None] * len(cities) for _ in range(len(cities))]
 
-		edges = []
-		for col in range(len((edges[0]))):
-			if edges[0][col] != float('inf'):
-				print("beans")
-		pass
+		for i in range(len(cities)):
+			for j in range(len(cities)):
+				edges[i][j] = cities[i].costTo(cities[j])
 
-	def partial_path(self, mat, r, c, prevBound=0, prevRows=[], prevCols=[]):
+				# if j < i:
+				# 	i,j = j,i
+				# 	dict[(i, j)] = self.cities[i].costTo(cities[j]._index)
+		bssf, edges = self.partial_path_tree(edges)
+
+
+		return bssf, edges
+
+	def partial_path_tree(self, ogMat):
+		edges = copy.deepcopy(ogMat)
+		done = False
+
+		prevRows = []
+		prevCols = []
+		bssf, initMat = self.RMCA(edges, len(edges), len(edges), 21, [], [])
+		edges = initMat
+		currRow = 0
+		counter = 0
+		bssfBefore = bssf
+		while not done:
+			bssfBefore = bssf
+
+			counter += 1
+
+			potentialBounds = []
+			potentialEdges = []
+			for col in range(len((edges[0]))):
+				# edges[currRow][col] != float('inf') and
+				if (edges[currRow][col] != float('inf') and currRow != col):
+					currBound, currEdges = self.partial_path(edges, currRow, col, bssf, prevRows, prevCols)
+					potentialBounds.append(currBound)
+					potentialEdges.append(currEdges)
+				else:
+					potentialBounds.append(float('inf'))
+					potentialEdges.append("place_holder")
+
+			nextIndex = np.argmin(potentialBounds)
+			bssf = potentialBounds[nextIndex]
+			edges = potentialEdges[nextIndex]
+
+			prevRows.append(currRow)
+			prevCols.append(nextIndex)
+
+			currRow = nextIndex
+
+			if bssfBefore < bssf:
+				done = True
+
+		return bssfBefore, edges
+
+
+
+
+	def partial_path(self, mat, r, c, prevBound, prevRows, prevCols):
 		edges = copy.deepcopy(mat)
 
 		prevBound += edges[r][c]
@@ -171,7 +225,7 @@ class TSPSolver:
 		bound, newEdges = self.RMCA(edges, r, c, prevBound, prevRows, prevCols)
 		return bound, newEdges
 
-	def RMCA(self, edges, r, c, prevBound=0, prevRows=[], prevCols=[]):
+	def RMCA(self, edges, r, c, prevBound, prevRows, prevCols):
 		bound = 0
 		for row in range(len(edges[0])):
 			boundAdded = False
@@ -220,13 +274,13 @@ class TSPSolver:
 	def fancy( self,time_allowance=60.0 ):
 		pass
 
-# values = [
-# 	[float('inf'), 1, float('inf'), 0, float('inf')],
-# 	[float('inf'), float('inf'), 1, float('inf'), 0],
-# 	[float('inf'), 0, float('inf'), 1, float('inf')],
-# 	[float('inf'), 0, 0, float('inf'), 6],
-# 	[0, float('inf'), float('inf'), 9 ,float('inf')]
-# ]
+values = [
+	[float('inf'), 1, float('inf'), 0, float('inf')],
+	[float('inf'), float('inf'), 1, float('inf'), 0],
+	[float('inf'), 0, float('inf'), 1, float('inf')],
+	[float('inf'), 0, 0, float('inf'), 6],
+	[0, float('inf'), float('inf'), 9 ,float('inf')]
+]
 # values = [
 # 	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
 # 	[float('inf'), float('inf'), 1, float('inf'), 0],
@@ -234,15 +288,42 @@ class TSPSolver:
 # 	[float('inf'), 0, 0, float('inf'), 6],
 # 	[0, float('inf'), float('inf'), float('inf'), float('inf')]
 # ]
-values = [
-	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
-	[float('inf'), float('inf'), float('inf'), float('inf'), 0],
-	[float('inf'), 0, float('inf'), float('inf'), float('inf')],
-	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
-	[0, float('inf'), float('inf'), float('inf'), float('inf')]
-]
+# values = [
+# 	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
+# 	[float('inf'), float('inf'), float('inf'), float('inf'), 0],
+# 	[float('inf'), 0, float('inf'), float('inf'), float('inf')],
+# 	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
+# 	[0, float('inf'), float('inf'), float('inf'), float('inf')]
+# ]
 
-solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
-TSPSolver.partial_path(solver_object, values, 2, 4, 21, [0,3], [3,2])
+
+# values = [
+# 	[float('inf'), 7, 3, 12],
+# 	[3, float('inf'), 6, 14],
+# 	[5, 8, float('inf'), 6],
+# 	[9, 3, 5, float('inf')],
+# ]
+# values = [
+# 	[float('inf'), 4, 0, 8],
+# 	[0, float('inf'), 3, 10],
+# 	[0, 3, float('inf'), 0],
+# 	[6, 0, 2, float('inf')],
+# ]
+# values = [
+# 	[float('inf'), float('inf'), float('inf'), float('inf')],
+# 	[0, float('inf'), float('inf'), 10],
+# 	[float('inf'), 3, float('inf'), 0],
+# 	[6, 0, float('inf'), float('inf')],
+# ]
+# values = [
+# 	[float('inf'), float('inf'), float('inf'), float('inf')],
+# 	[float('inf'), float('inf'), float('inf'), float('inf')],
+# 	[float('inf'), 3, float('inf'), 0],
+# 	[float('inf'), 0, float('inf'), float('inf')],
+# ]
+
+# solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
+# TSPSolver.partial_path_tree(solver_object, values)
+# TSPSolver.partial_path(solver_object, values, 2, 3, 15, [0,1], [2,0])
 
 		# RMCA(0, values, 1, 2, 0)
