@@ -181,8 +181,8 @@ class TSPSolver:
 		# expand is partial path
 		# test sees if all cities are visited
 
-		visitedCities = [False] * len(cities)
-		visitedCities[0] = True
+		visitedCities = []
+		visitedCities.append(0)
 		bound, matrix = self.lowerbound(edges, len(edges[0]), len(edges[0]), 0, [], [])
 		P0 = PartialPath(matrix, visitedCities, bound)
 		S = [P0]
@@ -191,9 +191,13 @@ class TSPSolver:
 			P = heapq.heappop(S)
 			lowerbound, _ = self.lowerbound(P.get_matrix, len(P.get_matrix), len(P.get_matrix), P.get_cost, [], [])
 			if lowerbound < bssf:
-				T = self.expand(P)
-
-		return bssf, edges
+				T = self.expand(P, P.get_visited_cities()[len(P.get_visited_cities()) - 1])
+				for Pi in T:
+					if self.test(Pi, cities) < bssf:
+						bssf = self.test(Pi, cities)
+					elif (self.lowerbound(Pi.get_matrix, len(Pi.get_matrix), len(Pi.get_matrix), Pi.get_cost, [], []) < bssf):
+						heapq.heappush(S, Pi)
+		return bssf
 
 	# expand will be finding all children's matrices and costs and return that in a list (update city to visited here)
 	# test will compare cost of a particular matrix that has visited Cities all equal to true (if the city is the last city in the array, then make sure there is a valid path to first city)
@@ -203,22 +207,17 @@ class TSPSolver:
 
 		for col in range(len((parent.get_matrix[0]))):
 			if (parent.get_matrix[currRow][col] != float('inf') and currRow != col):
-				currBound, currEdges = self.partial_path(parent.get_matrix, currRow, col, parent.get_cost, prevRows, prevCols)
+				prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix, currRow, col, parent.get_cost)
+				currBound, currEdges = self.lowerbound(updatedMatrix, currRow, col, prevBound, prevRows, prevCols)
+				# parent.get_visited_cities
 				visitedCities = parent.get_visitedCities()
-				visitedCities[col] = True
-				currChild = PartialPath(currEdges, visitedCities, currBound)
-				childrenPaths.append(currChild)
-			else:
-				currBound = float('inf')
-				currEdges = "place_holder"
-				visitedCities = parent.get_visitedCities()
-				# visitedCities[col] = True
+				visitedCities.append(col)
 				currChild = PartialPath(currEdges, visitedCities, currBound)
 				childrenPaths.append(currChild)
 
 		return childrenPaths
 
-	def partial_path(self, mat, r, c, prevBound, prevRows, prevCols):
+	def partial_path_update_matrix(self, mat, r, c, prevBound):
 		edges = copy.deepcopy(mat)
 
 		prevBound += edges[r][c]
@@ -227,11 +226,12 @@ class TSPSolver:
 				if (row == r or col == c):
 					edges[row][col] = float('inf')
 		edges[c][r] = float('inf')
-
-		bound, newEdges = self.lowerbound(edges, r, c, prevBound, prevRows, prevCols)
-		return bound, newEdges
+		# bound, newEdges = self.lowerbound(edges, r, c, prevBound, prevRows, prevCols)
+		return prevBound, edges
 
 	def lowerbound(self, edges, r, c, prevBound, prevRows, prevCols):
+		edges = copy.deepcopy(edges)
+
 		bound = 0
 		for row in range(len(edges[0])):
 			boundAdded = False
@@ -260,15 +260,19 @@ class TSPSolver:
 				else:
 					if (row != c and col != r) and (row not in prevCols and col not in prevRows):
 						bound = float('inf')
+
 		ogMatrix = np.transpose(edgesTranspose)
 		ogMatrixList = ogMatrix.tolist()
-		# if fro < len(ogMatrix) and to < len(ogMatrix):
-		# 	ogMatrix[fro][to] = float('inf')
+
 		bound += prevBound
+
 		return bound, ogMatrixList
 
-	def test(bool_list):
-		return all(bool_list)
+	def test(self, path, cities):
+		if all(i in path.get_visited_cities for i in range(1, len(cities))):
+			return path.get_cost
+		else:
+			return float('inf')
 
 	''' <summary>
 		This is the entry point for the algorithm you'll write for your group project.
@@ -372,7 +376,11 @@ values = [
 # 	[float('inf'), 0, float('inf'), float('inf')],
 # ]
 
-# solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
+solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
+newBound, newValues = TSPSolver.lowerbound(solver_object, values, len(values) ,len(values), 0, [], [])
+prevBound, edges = TSPSolver.partial_path_update_matrix(solver_object, newValues, 0,3, newBound)
+TSPSolver.lowerbound(solver_object, edges, 0 ,3, prevBound, [], [])
+
 # TSPSolver.partial_path_tree(solver_object, values)
 # TSPSolver.partial_path(solver_object, values, 2, 3, 15, [0,1], [2,0])
 
