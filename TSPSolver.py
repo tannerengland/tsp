@@ -18,6 +18,20 @@ import heapq
 import itertools
 import copy
 
+class PartialPath:
+    def __init__(self, matrix, visited_cities=None, cost=0):
+        self._matrix = matrix
+        self._visited_cities = visited_cities or []
+        self._cost = cost
+
+    def get_matrix(self):
+        return self._matrix
+
+    def get_visited_cities(self):
+        return self._visited_cities
+
+    def get_cost(self):
+        return self._cost
 
 class TSPSolver:
 	def __init__( self, gui_view ):
@@ -158,59 +172,51 @@ class TSPSolver:
 		for i in range(len(cities)):
 			for j in range(len(cities)):
 				edges[i][j] = cities[i].costTo(cities[j])
-
 				# if j < i:
 				# 	i,j = j,i
 				# 	dict[(i, j)] = self.cities[i].costTo(cities[j]._index)
-		bssf, edges = self.partial_path_tree(edges)
 
+		# bssf, edges = self.partial_path_tree(edges)
+# lowerbound is RCMA
+		# expand is partial path
+		# test sees if all cities are visited
+
+		visitedCities = [False] * len(cities)
+		visitedCities[0] = True
+		bound, matrix = self.lowerbound(edges, len(edges[0]), len(edges[0]), 0, [], [])
+		P0 = PartialPath(matrix, visitedCities, bound)
+		S = [P0]
+		bssf = self.greedy()['cost']
+		while S:
+			P = heapq.heappop(S)
+			lowerbound, _ = self.lowerbound(P.get_matrix, len(P.get_matrix), len(P.get_matrix), P.get_cost, [], [])
+			if lowerbound < bssf:
+				T = self.expand(P)
 
 		return bssf, edges
 
-	def partial_path_tree(self, ogMat):
-		edges = copy.deepcopy(ogMat)
-		done = False
+	# expand will be finding all children's matrices and costs and return that in a list (update city to visited here)
+	# test will compare cost of a particular matrix that has visited Cities all equal to true (if the city is the last city in the array, then make sure there is a valid path to first city)
 
-		prevRows = []
-		prevCols = []
-		bssf, initMat = self.RMCA(edges, len(edges), len(edges), 21, [], [])
-		edges = initMat
-		currRow = 0
-		counter = 0
-		bssfBefore = bssf
-		while not done:
-			bssfBefore = bssf
+	def expand(self, parent, currRow):
+		childrenPaths = []
 
-			counter += 1
+		for col in range(len((parent.get_matrix[0]))):
+			if (parent.get_matrix[currRow][col] != float('inf') and currRow != col):
+				currBound, currEdges = self.partial_path(parent.get_matrix, currRow, col, parent.get_cost, prevRows, prevCols)
+				visitedCities = parent.get_visitedCities()
+				visitedCities[col] = True
+				currChild = PartialPath(currEdges, visitedCities, currBound)
+				childrenPaths.append(currChild)
+			else:
+				currBound = float('inf')
+				currEdges = "place_holder"
+				visitedCities = parent.get_visitedCities()
+				# visitedCities[col] = True
+				currChild = PartialPath(currEdges, visitedCities, currBound)
+				childrenPaths.append(currChild)
 
-			potentialBounds = []
-			potentialEdges = []
-			for col in range(len((edges[0]))):
-				# edges[currRow][col] != float('inf') and
-				if (edges[currRow][col] != float('inf') and currRow != col):
-					currBound, currEdges = self.partial_path(edges, currRow, col, bssf, prevRows, prevCols)
-					potentialBounds.append(currBound)
-					potentialEdges.append(currEdges)
-				else:
-					potentialBounds.append(float('inf'))
-					potentialEdges.append("place_holder")
-
-			nextIndex = np.argmin(potentialBounds)
-			bssf = potentialBounds[nextIndex]
-			edges = potentialEdges[nextIndex]
-
-			prevRows.append(currRow)
-			prevCols.append(nextIndex)
-
-			currRow = nextIndex
-
-			if bssfBefore < bssf:
-				done = True
-
-		return bssfBefore, edges
-
-
-
+		return childrenPaths
 
 	def partial_path(self, mat, r, c, prevBound, prevRows, prevCols):
 		edges = copy.deepcopy(mat)
@@ -222,10 +228,10 @@ class TSPSolver:
 					edges[row][col] = float('inf')
 		edges[c][r] = float('inf')
 
-		bound, newEdges = self.RMCA(edges, r, c, prevBound, prevRows, prevCols)
+		bound, newEdges = self.lowerbound(edges, r, c, prevBound, prevRows, prevCols)
 		return bound, newEdges
 
-	def RMCA(self, edges, r, c, prevBound, prevRows, prevCols):
+	def lowerbound(self, edges, r, c, prevBound, prevRows, prevCols):
 		bound = 0
 		for row in range(len(edges[0])):
 			boundAdded = False
@@ -261,6 +267,8 @@ class TSPSolver:
 		bound += prevBound
 		return bound, ogMatrixList
 
+	def test(bool_list):
+		return all(bool_list)
 
 	''' <summary>
 		This is the entry point for the algorithm you'll write for your group project.
@@ -274,13 +282,55 @@ class TSPSolver:
 	def fancy( self,time_allowance=60.0 ):
 		pass
 
-values = [
-	[float('inf'), 1, float('inf'), 0, float('inf')],
-	[float('inf'), float('inf'), 1, float('inf'), 0],
-	[float('inf'), 0, float('inf'), 1, float('inf')],
-	[float('inf'), 0, 0, float('inf'), 6],
-	[0, float('inf'), float('inf'), 9 ,float('inf')]
-]
+	# def partial_path_tree(self, ogMat):
+	# 	edges = copy.deepcopy(ogMat)
+	# 	done = False
+	#
+	# 	prevRows = []
+	# 	prevCols = []
+	# 	bssf, initMat = self.lowerbound(edges, len(edges), len(edges), 0, [], [])
+	# 	edges = initMat
+	# 	currRow = 0
+	# 	counter = 0
+	# 	bssfBefore = bssf
+	# 	while not done:
+	# 		bssfBefore = bssf
+	# 		counter += 1
+	#
+	# 		potentialBounds = []
+	# 		potentialEdges = []
+	# 		for col in range(len((edges[0]))):
+	# 			# edges[currRow][col] != float('inf') and
+	# 			if (edges[currRow][col] != float('inf') and currRow != col):
+	# 				currBound, currEdges = self.expand(edges, currRow, col, bssf, prevRows, prevCols)
+	# 				potentialBounds.append(currBound)
+	# 				potentialEdges.append(currEdges)
+	# 			else:
+	# 				potentialBounds.append(float('inf'))
+	# 				potentialEdges.append("place_holder")
+	# 		nextIndex = np.argmin(potentialBounds)
+	# 		bssf = potentialBounds[nextIndex]
+	# 		edges = potentialEdges[nextIndex]
+	#
+	# 		prevRows.append(currRow)
+	# 		prevCols.append(nextIndex)
+	#
+	# 		currRow = nextIndex
+	#
+	# 		if bssfBefore < bssf:
+	# 			done = True
+	#
+	# 		# TODO: make partial path class, make a cost matrix, cities that have already been visited (see if # of cities == # of cities) THEN put in PQ (already built)
+	#
+	# 	return bssfBefore, edges
+
+# values = [
+# 	[float('inf'), 1, float('inf'), 0, float('inf')],
+# 	[float('inf'), float('inf'), 1, float('inf'), 0],
+# 	[float('inf'), 0, float('inf'), 1, float('inf')],
+# 	[float('inf'), 0, 0, float('inf'), 6],
+# 	[0, float('inf'), float('inf'), 9 ,float('inf')]
+# ]
 # values = [
 # 	[float('inf'), float('inf'), float('inf'), float('inf'), float('inf')],
 # 	[float('inf'), float('inf'), 1, float('inf'), 0],
@@ -297,12 +347,12 @@ values = [
 # ]
 
 
-# values = [
-# 	[float('inf'), 7, 3, 12],
-# 	[3, float('inf'), 6, 14],
-# 	[5, 8, float('inf'), 6],
-# 	[9, 3, 5, float('inf')],
-# ]
+values = [
+	[float('inf'), 7, 3, 12],
+	[3, float('inf'), 6, 14],
+	[5, 8, float('inf'), 6],
+	[9, 3, 5, float('inf')],
+]
 # values = [
 # 	[float('inf'), 4, 0, 8],
 # 	[0, float('inf'), 3, 10],
