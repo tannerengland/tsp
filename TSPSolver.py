@@ -168,28 +168,18 @@ class TSPSolver:
 
     def branchAndBound(self, time_allowance=60.0):
         results = {}
-
         cities = self._scenario.getCities().copy()
-
         edges = [[None] * len(cities) for _ in range(len(cities))]
 
         for i in range(len(cities)):
             for j in range(len(cities)):
                 edges[i][j] = cities[i].costTo(cities[j])
 
-
         start_time = time.time()
-
-
-        # lowerbound is RCMA
-        # expand is partial path
-        # test sees if all cities are visited
 
         numCities = len(cities)
         pruned = 0
-        max=0
         count = 0
-
 
         visitedCities = []
         visitedCities.append(0)
@@ -197,16 +187,20 @@ class TSPSolver:
         visitedCitiesNoIndex.append(cities[0])
         bssf = TSPSolution(visitedCitiesNoIndex)
         bound, matrix = self.lowerbound(edges, numCities, numCities, 0, False)
-
         P0 = PartialPath(matrix, visitedCities, bound)
         total = 1
         S = []
         heapq.heappush(S, P0)
+        max = 1
         # count = 1
         # bssf = self.greedy()['cost']
+
+
         bssf.cost = self.greedy()['cost']
 
-        while S:
+        while S and time_allowance > (time.time() - start_time):
+        # while S:
+
             P = heapq.heappop(S)
 
             # prevRows = []
@@ -232,7 +226,6 @@ class TSPSolver:
                         bssf.cost = self.test(Pi, cities)
                         count += 1
                         visitedCitiesNoIndex = []
-                        route = []
                         for city in Pi.get_visited_cities():
                             visitedCitiesNoIndex.append(cities[city])
                         # bssf.route = visitedCitiesNoIndex
