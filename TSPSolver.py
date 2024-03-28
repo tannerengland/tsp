@@ -17,6 +17,8 @@ from TSPClasses import *
 import heapq
 import itertools
 import copy
+import queue
+
 
 
 class PartialPath:
@@ -33,6 +35,9 @@ class PartialPath:
 
     def get_cost(self):
         return self._cost
+
+    def __lt__(self, other):
+        return self._cost/len(self._visited_cities) < other._cost/len(other._visited_cities)
 
 
 class TSPSolver:
@@ -162,6 +167,8 @@ class TSPSolver:
 	'''
 
     def branchAndBound(self, time_allowance=60.0):
+        results = {}
+
         cities = self._scenario.getCities().copy()
 
         edges = [[None] * len(cities) for _ in range(len(cities))]
@@ -170,59 +177,118 @@ class TSPSolver:
             for j in range(len(cities)):
                 edges[i][j] = cities[i].costTo(cities[j])
 
+        # edges = [
+        #     [float('inf'), 7, 3, 12],
+        #     [3, float('inf'), 6, 14],
+        #     [5, 8, float('inf'), 6],
+        #     [9, 3, 5, float('inf')],
+        # ]
+
+        start_time = time.time()
+
+
         # lowerbound is RCMA
         # expand is partial path
         # test sees if all cities are visited
 
+        numCities = len(cities)
+        total = 0
+        pruned = 0
+        max=0
+        count = 0
+
+
         visitedCities = []
         visitedCities.append(0)
-        bound, matrix = self.lowerbound(edges, len(edges[0]), len(edges[0]), 0, [], [])
+        visitedCitiesNoIndex = []
+        visitedCitiesNoIndex.append(cities[0])
+        bssf = TSPSolution(visitedCitiesNoIndex)
+        bound, matrix = self.lowerbound(edges, numCities, numCities, 0, [], [])
 
         P0 = PartialPath(matrix, visitedCities, bound)
-        S = [P0]
-        bssf = self.greedy()['cost']
+        S = []
+        heapq.heappush(S, P0)
+        # count = 1
+        # bssf = self.greedy()['cost']
+        bssf.cost = self.defaultRandomTour()['cost']
+
         while S:
             P = heapq.heappop(S)
-            lowerBound, _ = self.lowerbound(P.get_matrix(), len(P.get_matrix()[0]), len(P.get_matrix()[0]),
-                                            P.get_cost(), [], [])
-            if lowerBound < bssf:
+
+            prevRows = []
+            prevCols = []
+            if len(P.get_visited_cities()) > 0:
+                prevRows = P.get_visited_cities()[:-1]
+                prevCols = P.get_visited_cities()[1:]
+
+            lowerBound, _ = self.lowerbound(P.get_matrix(), numCities, numCities, P.get_cost(), prevRows, prevCols)
+            if lowerBound < bssf.cost:
                 T = self.expand(P, P.get_visited_cities()[len(P.get_visited_cities()) - 1])
+                total += len(T)
                 for Pi in T:
-                    if self.test(Pi, cities) < bssf:
-                        bssf = self.test(Pi, cities)
-                    elif (self.lowerbound(Pi.get_matrix(), len(Pi.get_matrix()[0]), len(Pi.get_matrix()[0]),
-                                          Pi.get_cost(), [], []) < bssf):
+                    prevRows = []
+                    prevCols = []
+                    if len(Pi.get_visited_cities()) > 0:
+                        prevRows = Pi.get_visited_cities()[:-1]
+                        prevCols = Pi.get_visited_cities()[1:]
+
+                    lowerBound, _ = self.lowerbound(Pi.get_matrix(), numCities, numCities, Pi.get_cost(), prevRows, prevCols)
+                    if self.test(Pi, cities) < bssf.cost:
+                        bssf.cost = self.test(Pi, cities)
+                        count += 1
+                        for city in Pi.get_visited_cities():
+                            visitedCitiesNoIndex.append(cities[city])
+                        bssf = TSPSolution(visitedCitiesNoIndex)
+                    elif (lowerBound < bssf.cost):
                         heapq.heappush(S, Pi)
-        return bssf
+                        if len(S) > max:
+                            max = len(S)
+
+
+        end_time = time.time()
+
+        results['cost'] = bssf.cost
+        results['time'] = end_time - start_time
+        results['count'] = count
+        results['soln'] = bssf
+        results['max'] = max
+        results['total'] = total
+        results['pruned'] = pruned
+
+        return results
 
     # expand will be finding all children's matrices and costs and return that in a list (update city to visited here)
     def expand(self, parent, currRow):
         childrenPaths = []
 
-        for col in range(len((parent.get_matrix[0]))):
-            # if (parent.get_matrix[currRow][col] != float('inf') and currRow != col) and col != 0:
-            if (parent.get_matrix[currRow][col] != float('inf') and currRow != col) and (col in parent.get_visited_cities()):
-                # if (parent.get_matrix[currRow][col] != float('inf') and currRow != col):
-                prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix, currRow, col,
-                                                                           parent.get_cost)
+        for col in range(len((parent.get_matrix()[0]))):
+            if (parent.get_matrix()[currRow][col] != float('inf') and currRow != col) and (col not in parent.get_visited_cities()):
+                prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix(), currRow, col,
+                                                                           parent.get_cost())
+                prevRows = []
+                preCols = []
                 if len(parent.get_visited_cities()) > 0:
-                    currBound, currEdges = self.lowerbound(updatedMatrix, currRow, col, prevBound,
-                                                           parent.get_visited_cities()[:-1],
-                                                           parent.get_visited_cities()[1:])
-                else:
-                    currBound, currEdges = self.lowerbound(updatedMatrix, currRow, col, prevBound, [], [])
+                    prevRows = parent.get_visited_cities()[:-1]
+                    preCols = parent.get_visited_cities()[1:]
+
+                currBound, currEdges = self.lowerbound(updatedMatrix, currRow, col, prevBound, prevRows, preCols)
                 visitedCities = parent.get_visited_cities()
                 visitedCities.append(col)
                 currChild = PartialPath(currEdges, visitedCities, currBound)
                 childrenPaths.append(currChild)
 
-        # prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix, currRow, parent.get_visited_cities()[0], parent.get_cost)
-        # currBound, currEdges = self.lowerbound(updatedMatrix, currRow, parent.get_visited_cities()[0], prevBound, prevRows, prevCols)
-        # visitedCities = parent.get_visited_cities()
-        # currChild = PartialPath(currEdges, visitedCities, currBound)
-        # childrenPaths.append(currChild)
 
         return childrenPaths
+
+    # if (parent.get_matrix[currRow][col] != float('inf') and currRow != col) and col != 0:
+
+    # if (parent.get_matrix[currRow][col] != float('inf') and currRow != col):
+
+    # prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix, currRow, parent.get_visited_cities()[0], parent.get_cost)
+    # currBound, currEdges = self.lowerbound(updatedMatrix, currRow, parent.get_visited_cities()[0], prevBound, prevRows, prevCols)
+    # visitedCities = parent.get_visited_cities()
+    # currChild = PartialPath(currEdges, visitedCities, currBound)
+    # childrenPaths.append(currChild)
 
     def partial_path_update_matrix(self, mat, r, c, prevBound):
         edges = copy.deepcopy(mat)
@@ -277,8 +343,10 @@ class TSPSolver:
 
     # test will compare cost of a particular matrix that has visited Cities all equal to true (if the city is the last city in the array, then make sure there is a valid path to first city)
     def test(self, path, cities):
-        if all(i in path.get_visited_cities for i in range(0, len(cities))):
-            return path.get_cost + path.get_visited_cities[0].costTo(path.get_visited_cities[len(cities) - 1])
+        if all(i in path.get_visited_cities() for i in range(0, len(cities))):
+            lastCity = cities[path.get_visited_cities()[len(cities) - 1]]
+            firstCity = cities[path.get_visited_cities()[0]]
+            return path.get_cost() + lastCity.costTo(firstCity)
         else:
             return float('inf')
 
@@ -385,7 +453,12 @@ values = [
 # 	[float('inf'), 0, float('inf'), float('inf')],
 # ]
 
+list = [0,1,2,3,4,5]
+newList= list[:-1]
+
 solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
+
+# TSPSolver.branchAndBound(solver_object)
 newBound, newValues = TSPSolver.lowerbound(solver_object, values, len(values), len(values), 0, list[1:], list[:-1])
 prevBound, edges = TSPSolver.partial_path_update_matrix(solver_object, newValues, 3, 1, newBound)
 TSPSolver.lowerbound(solver_object, edges, 3, 1, prevBound, list[1:], list[:-1])
