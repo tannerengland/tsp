@@ -177,12 +177,6 @@ class TSPSolver:
             for j in range(len(cities)):
                 edges[i][j] = cities[i].costTo(cities[j])
 
-        # edges = [
-        #     [float('inf'), 7, 3, 12],
-        #     [3, float('inf'), 6, 14],
-        #     [5, 8, float('inf'), 6],
-        #     [9, 3, 5, float('inf')],
-        # ]
 
         start_time = time.time()
 
@@ -192,7 +186,6 @@ class TSPSolver:
         # test sees if all cities are visited
 
         numCities = len(cities)
-        total = 0
         pruned = 0
         max=0
         count = 0
@@ -203,46 +196,56 @@ class TSPSolver:
         visitedCitiesNoIndex = []
         visitedCitiesNoIndex.append(cities[0])
         bssf = TSPSolution(visitedCitiesNoIndex)
-        bound, matrix = self.lowerbound(edges, numCities, numCities, 0, [], [])
+        bound, matrix = self.lowerbound(edges, numCities, numCities, 0, False)
 
         P0 = PartialPath(matrix, visitedCities, bound)
+        total = 1
         S = []
         heapq.heappush(S, P0)
         # count = 1
         # bssf = self.greedy()['cost']
-        bssf.cost = self.defaultRandomTour()['cost']
+        bssf.cost = self.greedy()['cost']
 
         while S:
             P = heapq.heappop(S)
 
-            prevRows = []
-            prevCols = []
-            if len(P.get_visited_cities()) > 0:
-                prevRows = P.get_visited_cities()[:-1]
-                prevCols = P.get_visited_cities()[1:]
+            # prevRows = []
+            # prevCols = []
+            # if len(P.get_visited_cities()) > 0:
+            #     prevRows = P.get_visited_cities()[:-1]
+            #     prevCols = P.get_visited_cities()[1:]
 
-            lowerBound, _ = self.lowerbound(P.get_matrix(), numCities, numCities, P.get_cost(), prevRows, prevCols)
-            if lowerBound < bssf.cost:
+            # lowerBound, _ = self.lowerbound(P.get_matrix(), numCities, numCities, P.get_cost(), False)
+            if P.get_cost() < bssf.cost:
                 T = self.expand(P, P.get_visited_cities()[len(P.get_visited_cities()) - 1])
                 total += len(T)
+                pruned += numCities - len(P.get_visited_cities()) - len(T)
                 for Pi in T:
-                    prevRows = []
-                    prevCols = []
-                    if len(Pi.get_visited_cities()) > 0:
-                        prevRows = Pi.get_visited_cities()[:-1]
-                        prevCols = Pi.get_visited_cities()[1:]
+                    # prevRows = []
+                    # prevCols = []
+                    # if len(Pi.get_visited_cities()) > 0:
+                    #     prevRows = Pi.get_visited_cities()[:-1]
+                    #     prevCols = Pi.get_visited_cities()[1:]
 
-                    lowerBound, _ = self.lowerbound(Pi.get_matrix(), numCities, numCities, Pi.get_cost(), prevRows, prevCols)
+                    # lowerBound, _ = self.lowerbound(Pi.get_matrix(), numCities, numCities, Pi.get_cost(), False)
                     if self.test(Pi, cities) < bssf.cost:
                         bssf.cost = self.test(Pi, cities)
                         count += 1
+                        visitedCitiesNoIndex = []
+                        route = []
                         for city in Pi.get_visited_cities():
                             visitedCitiesNoIndex.append(cities[city])
-                        bssf = TSPSolution(visitedCitiesNoIndex)
-                    elif (lowerBound < bssf.cost):
+                        # bssf.route = visitedCitiesNoIndex
+                        route = visitedCitiesNoIndex
+                        temp = TSPSolution(route)
+                        bssf = temp
+                        # print(bssf)
+                    elif (Pi.get_cost() < bssf.cost):
                         heapq.heappush(S, Pi)
                         if len(S) > max:
                             max = len(S)
+                    else:
+                        pruned += 1
 
 
         end_time = time.time()
@@ -263,20 +266,19 @@ class TSPSolver:
 
         for col in range(len((parent.get_matrix()[0]))):
             if (parent.get_matrix()[currRow][col] != float('inf') and currRow != col) and (col not in parent.get_visited_cities()):
-                prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix(), currRow, col,
-                                                                           parent.get_cost())
-                prevRows = []
-                preCols = []
-                if len(parent.get_visited_cities()) > 0:
-                    prevRows = parent.get_visited_cities()[:-1]
-                    preCols = parent.get_visited_cities()[1:]
+                # prevBound, updatedMatrix = self.partial_path_update_matrix(parent.get_matrix(), currRow, col,
+                #                                                            parent.get_cost())
+                # prevRows = []
+                # preCols = []
+                # if len(parent.get_visited_cities()) > 0:
+                #     prevRows = parent.get_visited_cities()[:-1]
+                #     preCols = parent.get_visited_cities()[1:]
 
-                currBound, currEdges = self.lowerbound(updatedMatrix, currRow, col, prevBound, prevRows, preCols)
-                visitedCities = parent.get_visited_cities()
+                currBound, currEdges = self.lowerbound(parent.get_matrix(), currRow, col, parent.get_cost(), True)
+                visitedCities = copy.deepcopy(parent.get_visited_cities())
                 visitedCities.append(col)
                 currChild = PartialPath(currEdges, visitedCities, currBound)
                 childrenPaths.append(currChild)
-
 
         return childrenPaths
 
@@ -302,37 +304,35 @@ class TSPSolver:
         # bound, newEdges = self.lowerbound(edges, r, c, prevBound, prevRows, prevCols)
         return prevBound, edges
 
-    def lowerbound(self, edges, r, c, prevBound, prevRows, prevCols):
+    def lowerbound(self, edges, r, c, prevBound, updateMat):
         edges = copy.deepcopy(edges)
+
+        if updateMat == True:
+            # this adds path costs
+            prevBound += edges[r][c]
+            # this infinities out
+            for row in range(len(np.transpose(edges)[0])):
+                edges[row][c] = float('inf')
+            for col in range(len(edges[0])):
+                edges[r][col] = float('inf')
+            # infinities out inverse
+            edges[c][r] = float('inf')
 
         bound = 0
         for row in range(len(edges[0])):
-            boundAdded = False
             minimum = min(edges[row])
-            for col in range(len(edges[0])):
-                # (minimum == float('inf') and (row != fro and col != to)) or
-                if minimum != float('inf'):
+            if minimum != float('inf'):
+                bound += minimum
+                for col in range(len(edges[0])):
                     edges[row][col] -= minimum
-                    if boundAdded == False:
-                        bound += minimum
-                        boundAdded = True
-                else:
-                    if (row != r and col != c) and (row not in prevRows and col not in prevCols):
-                        bound = float('inf')
+
         edgesTranspose = np.transpose(edges)
         for row in range(len(edgesTranspose[0])):
-            boundAdded = False
             minimum = min(edgesTranspose[row])
-            for col in range(len(edgesTranspose[0])):
-                # (minimum == float('inf') and (row != fro and col != to)) or
-                if minimum != float('inf'):
+            if minimum != float('inf'):
+                bound += minimum
+                for col in range(len(edgesTranspose[0])):
                     edgesTranspose[row][col] -= minimum
-                    if boundAdded == False:
-                        bound += minimum
-                        boundAdded = True
-                else:
-                    if (row != c and col != r) and (row not in prevCols and col not in prevRows):
-                        bound = float('inf')
 
         ogMatrix = np.transpose(edgesTranspose)
         ogMatrixList = ogMatrix.tolist()
@@ -346,7 +346,7 @@ class TSPSolver:
         if all(i in path.get_visited_cities() for i in range(0, len(cities))):
             lastCity = cities[path.get_visited_cities()[len(cities) - 1]]
             firstCity = cities[path.get_visited_cities()[0]]
-            return path.get_cost() + lastCity.costTo(firstCity)
+            return path.get_cost() #+ lastCity.costTo(firstCity)
         else:
             return float('inf')
 
@@ -458,10 +458,13 @@ newList= list[:-1]
 
 solver_object = TSPSolver(None)  # Replace value1 and value2 with actual parameters
 
+# TSPSolver.lowerbound(solver_object, values, 0, 2, 0)
+
+
 # TSPSolver.branchAndBound(solver_object)
-newBound, newValues = TSPSolver.lowerbound(solver_object, values, len(values), len(values), 0, list[1:], list[:-1])
-prevBound, edges = TSPSolver.partial_path_update_matrix(solver_object, newValues, 3, 1, newBound)
-TSPSolver.lowerbound(solver_object, edges, 3, 1, prevBound, list[1:], list[:-1])
+# newBound, newValues = TSPSolver.lowerbound(solver_object, values, len(values), len(values), 0, list[1:], list[:-1])
+# prevBound, edges = TSPSolver.partial_path_update_matrix(solver_object, newValues, 3, 1, newBound)
+# TSPSolver.lowerbound(solver_object, edges, 3, 1, prevBound, list[1:], list[:-1])
 
 # TSPSolver.partial_path_tree(solver_object, values)
 # TSPSolver.partial_path(solver_object, values, 2, 3, 15, [0,1], [2,0])
