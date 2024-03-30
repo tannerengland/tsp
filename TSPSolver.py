@@ -101,10 +101,12 @@ class TSPSolver:
 		algorithm</returns>
 	'''
 
-    # Time: O()
-    # Space: O()
     # A greedy approach to the traveling salesperson problem by finding the minimum outgoing edge to each unvisited city
     # until all cities are visited
+    # Time: O(n^2) we must go through all the cities and get their associated costs to every city to decided which city
+    # to visit next
+    # Space: O(n) we must store the cities which is of length n (for the original cities array, the visited boolean
+    # array, the route, and the costs of all the cities)
     def greedy(self, time_allowance=60.0):
         cities = self._scenario.getCities().copy()
         results = {}
@@ -121,7 +123,7 @@ class TSPSolver:
             route.append(cities[random_index])
             currCity = cities[random_index]
 
-            # marks all cities as unvisited
+            # marks all cities as unvisited except the one we are starting from
             visitedBools = [False] * len(cities)
             visitedBools[random_index] = True
             cost = 0
@@ -150,6 +152,7 @@ class TSPSolver:
 
             # assures we have a path back to the first city we visited
             if route[-1].costTo(route[0]) != float('inf') and cost != float('inf'):
+                cost += route[-1].costTo(route[0])
                 doAgain = False
 
             bssf = TSPSolution(route)
@@ -174,10 +177,13 @@ class TSPSolver:
 		max queue size, total number of states created, and number of pruned states.</returns>
 	'''
 
-    # Time: O()
-    # Space: O()
     # Branch and Bound algorithm that finds the minimum path amongst cities by considering paths and pruning those
     # that are not better than our Best Solution we have calculated So Far
+    # Time: O(n^2 * b) where b is the number of states that we have made and n is the number of cities. The time it
+    # takes for the number of nodes created for the potential queue insertion multiplied by the complexity of creating a
+    # node which has a cost of O(n^2) (from the reduced cost matrix).
+    # Space: O(n^2 * b) where b is the number of states that we have made and n is the number of cities. Since we store
+    # a reduced cost matrix which is an nxn matrix for every state we have created.
     def branchAndBound(self, time_allowance=60.0):
         results = {}
         cities = self._scenario.getCities().copy()
@@ -251,14 +257,17 @@ class TSPSolver:
 
         return results
 
-    # Time: O()
-    # Space: O()
+
     # Finds all children matrices/costs (or visits all possible cities) and return it in a list
+    # Time: O(n^3) must calculate and create an nxn matrix of all costs for each child of a parent via the lowerbound
+    # function for n-1 times worst case
+    # Space: O(n^3) creates reduced cost matrices for all children of a given parent, which is an nxn dimensioned table
+    # via the lowerbound function for n-1 times worst case
     def expand(self, parent, currRow):
         childrenPaths = []
 
         for col in range(len((parent.get_matrix()[0]))):
-            # makes sure we are not trying to visit an already visited city or ourself
+            # makes sure we are not trying to visit an already visited city or our self
             if (parent.get_matrix()[currRow][col] != float('inf') and currRow != col) and (col not in parent.get_visited_cities()):
                 currBound, currEdges = self.lowerbound(parent.get_matrix(), currRow, col, parent.get_cost(), True)
                 visitedCities = copy.deepcopy(parent.get_visited_cities())
@@ -270,9 +279,11 @@ class TSPSolver:
 
         return childrenPaths
 
-    # Time: O()
-    # Space: O()
     # Updates the cost matrix and does our reduced cost matrix algorithm, returning the lowerbound and cost matrix
+    # Time: O(n^2) must go through the entirety of the nxn matrix to calculate the lower bound and the reduced cost
+    # matrix (the minimum of each row and column)
+    # Space: O(n^2) we must make and modify a deep copy of the matrix we are given so that we don't edit the parent
+    # matrix to make the child and update the lowerbound
     def lowerbound(self, edges, r, c, prevBound, updateMat):
         edges = copy.deepcopy(edges)
 
@@ -314,6 +325,8 @@ class TSPSolver:
         return bound, ogMatrixList
 
     # Returns a partial path's cost if all cities are visited for that path
+    # Time: O(n) we must iterate through the entirety of the amount of cities at worst case to check if all are visited
+    # Space: O(1) we are returning the cost retrieved from a partial path object
     def test(self, path, cities):
         # makes sure all cities are visited to return the partial path cost
         if all(i in path.get_visited_cities() for i in range(0, len(cities))):
